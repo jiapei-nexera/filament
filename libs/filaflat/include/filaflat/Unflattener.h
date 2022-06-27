@@ -26,8 +26,8 @@
 
 namespace filaflat {
 
-// Allow read operation from an Unflattenable. All READ operation MUST go through the Unflattener
-// since it checks boundaries before readind. All read operations return values MUST be verified,
+// Allow read operation from an Unflattenable. (?) All READ operation MUST go through the Unflattener
+// since it checks boundaries before reading. All read operations return values MUST be verified,
 // never assume a read will succeed.
 class UTILS_PUBLIC Unflattener {
 public:
