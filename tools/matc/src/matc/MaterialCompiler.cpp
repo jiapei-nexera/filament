@@ -264,7 +264,60 @@ bool MaterialCompiler::run(const Config& config) {
         std::cerr << "Input file is empty" << std::endl;
         return false;
     }
-    auto buffer = input->read();
+    std::unique_ptr<const char[]> buffer = input->read();
+
+    // Perform template substitutions in two passes: the first pass determines the size of the
+    // modified buffer and checks for errors. The second pass rebuilds the buffer.
+    const auto& templateMap = config.getTemplateMap();
+    ssize_t modifiedSize = size;
+    bool modified = false;
+    if (!templateMap.empty()) {
+        for (ssize_t cursor = 0, n = size - 1; cursor < n; ++cursor) {
+            if (UTILS_LIKELY(buffer[cursor] != '$' || buffer[cursor + 1] != '{')) {
+                continue;
+            }
+            ssize_t endCursor = cursor + 1;
+            while (endCursor < size && buffer[++endCursor] != '}');
+            if (endCursor == size) {
+                std::cerr << "Unexpected end of file" << std::endl;
+                return false;
+            }
+            cursor += 2;
+            std::string_view macro(buffer.get() + cursor, endCursor - cursor);
+            if (auto iter = templateMap.find(macro); iter != templateMap.end()) {
+                modifiedSize -= macro.size() + 3;
+                modifiedSize += iter->second.size();
+            } else {
+                std::cerr << "Undefined template macro:" << macro << std::endl;
+                return false;
+            }
+            modified = true;
+        }
+    }
+
+    // Second pass of template substitution allocates a new buffer and performs the actual
+    // substitutions. Since the first pass did not return early, we can safely assume no errors.
+    if (modified) {
+        auto modifiedBuffer = std::make_unique<char[]>(modifiedSize);
+        for (ssize_t cursor = 0, dstCursor = 0; cursor < size; ++cursor) {
+            const ssize_t next = cursor + 1;
+            if (UTILS_LIKELY(buffer[cursor] != '$' || next >= size || buffer[next] != '{')) {
+                modifiedBuffer[dstCursor++] = buffer[cursor];
+                continue;
+            }
+            ssize_t endCursor = cursor + 1;
+            while (endCursor < size && buffer[++endCursor] != '}');
+            cursor += 2;
+            std::string_view macro(buffer.get() + cursor, endCursor - cursor);
+            const std::string& val = templateMap.find(macro)->second;
+            for (size_t i = 0, n = val.size(); i < n; ++i, ++dstCursor) {
+                modifiedBuffer[dstCursor] = val[i];
+            }
+            cursor = endCursor;
+        }
+        buffer.reset(modifiedBuffer.release());
+        size = modifiedSize;
+    }
 
     utils::Path materialFilePath = utils::Path(input->getName()).getAbsolutePath();
     assert(materialFilePath.isFile());

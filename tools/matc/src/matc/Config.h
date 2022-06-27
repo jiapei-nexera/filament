@@ -22,8 +22,8 @@
 
 #include <filamat/MaterialBuilder.h>
 
+#include <map>
 #include <memory>
-#include <unordered_map>
 #include <ostream>
 
 #include <utils/compiler.h>
@@ -40,6 +40,10 @@ public:
     using Platform = filamat::MaterialBuilder::Platform;
     using TargetApi = filamat::MaterialBuilder::TargetApi;
     using Optimization = filamat::MaterialBuilder::Optimization;
+
+    // For defines and template args, we use an ordered map with a transparent comparator
+    // to enable efficient lookups using string_view keys.
+    using StringViewMap = std::map<std::string, std::string, std::less<>>;
 
     enum class Metadata {
         NONE,
@@ -114,8 +118,12 @@ public:
         return mVariantFilter;
     }
 
-    const std::unordered_map<std::string, std::string>& getDefines() const noexcept {
+    const StringViewMap& getDefines() const noexcept {
         return mDefines;
+    }
+
+    const StringViewMap& getTemplateMap() const noexcept {
+        return mTemplateMap;
     }
 
 protected:
@@ -128,7 +136,8 @@ protected:
     Platform mPlatform = Platform::ALL;
     OutputFormat mOutputFormat = OutputFormat::BLOB;
     TargetApi mTargetApi = (TargetApi) 0;
-    std::unordered_map<std::string, std::string> mDefines;
+    StringViewMap mDefines;
+    StringViewMap mTemplateMap;
     filament::UserVariantFilterMask mVariantFilter = 0;
 };
 
